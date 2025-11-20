@@ -2,8 +2,8 @@ name: Fetch Japan Stock Prices
 
 on:
   schedule:
-    - cron: '0 0-7 * * 1-5' # UTC 0-7 → JST 9-16, 月〜金
-  workflow_dispatch:
+    - cron: '0 0-7 * * 1-5'  # UTC 0-7 → JST 9-16, 月～金
+  workflow_dispatch:         # 手動実行も可能
 
 jobs:
   fetch_prices:
@@ -24,8 +24,3 @@ jobs:
 
       - name: Run stock price fetch
         run: python fetch_all_japan_stocks.py
-
-      - name: Push changes
-        uses: ad-m/github-push-action@v0.6.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
