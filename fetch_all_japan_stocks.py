@@ -26,7 +26,7 @@ def get_all_japanese_tickers():
         print(f"{EXCEL_FILE} が見つかりません。先にアップロードしてください。")
         return []
 
-    df = pd.read_excel(EXCEL_FILE, skiprows=2)  # Excel の形式に応じて skiprows 調整
+    df = pd.read_excel(EXCEL_FILE, skiprows=0)  # Excel の形式に応じて skiprows 調整
     if "コード" not in df.columns:
         raise KeyError("'コード' 列が Excel に存在しません。")
 
