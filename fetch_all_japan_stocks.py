@@ -26,10 +26,9 @@ def get_all_japanese_tickers():
         print(f"{EXCEL_FILE} が見つかりません。先にアップロードしてください。")
         return []
 
-    df = pd.read_excel(EXCEL_FILE, skiprows=0)  # Excel の形式に応じて skiprows 調整
+    df = pd.read_excel(EXCEL_FILE, skiprows=0)  # Excel の形式に応じて調整
     if "コード" not in df.columns:
         raise KeyError("'コード' 列が Excel に存在しません。")
-
     tickers = df["コード"].astype(str) + ".T"
     return tickers.tolist()
 
@@ -42,7 +41,6 @@ def load_or_update_tickers():
         with open(TICKER_FILE, "r") as f:
             data = json.load(f)
             last_update = datetime.fromisoformat(data["last_update"])
-            # 30日以内なら更新不要
             if datetime.now() - last_update < timedelta(days=30):
                 update_needed = False
                 return data["tickers"]
@@ -100,10 +98,16 @@ def save_prices(df):
 # ---------------------------
 def git_commit_push(file_name):
     try:
-        subprocess.run(["git", "config", "--global", "user.email", "you@example.com"], check=True)
-        subprocess.run(["git", "config", "--global", "user.name", "Your Name"], check=True)
+        # 変更をステージング
         subprocess.run(["git", "add", os.path.join(DATA_DIR, file_name)], check=True)
-        subprocess.run(["git", "commit", "-m", f"Add stock data {file_name}"], check=True)
+
+        # コミット（既に同じコミットがあっても空コミット許可）
+        subprocess.run(
+            ["git", "commit", "-m", f"Add stock data {file_name}", "--allow-empty"], 
+            check=True
+        )
+
+        # push（GitHub Actions 内では GITHUB_TOKEN による認証で安全）
         subprocess.run(["git", "push"], check=True)
         print(f"{file_name} を GitHub にコミット＆プッシュしました")
     except subprocess.CalledProcessError as e:
@@ -117,11 +121,14 @@ def main():
     if not tickers:
         print("ティッカーが取得できません。処理を終了します。")
         return
+
     print(f"{len(tickers)} 銘柄の株価を取得中...")
     df = fetch_all_prices(tickers)
+
     file_name = save_prices(df)
     if file_name:
         git_commit_push(file_name)
 
 if __name__ == "__main__":
     main()
+
