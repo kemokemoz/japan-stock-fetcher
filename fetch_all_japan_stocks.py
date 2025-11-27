@@ -1,83 +1,78 @@
 import os
-import json
 import time
-from datetime import datetime, timedelta
-import yfinance as yf
-import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
 import subprocess
+from datetime import datetime
+import pandas as pd
+import yfinance as yf
 
 # ---------------------------
 # 設定
 # ---------------------------
-TICKER_FILE = "tickers.json"
+TICKER_LIST_CSV = "tickers_list.csv"   # ← 銘柄リスト（60銘柄）
 DATA_DIR = "stock_data"
-EXCEL_FILE = "data_j.xls"  # 手動で更新される Excel ファイル
-MAX_WORKERS = 10
-RETRY_DELAY = 5
-
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # ---------------------------
-# 日本株ティッカー取得（Excel ファイル）
+# 銘柄リストを読み込む
 # ---------------------------
-def get_all_japanese_tickers():
-    if not os.path.exists(EXCEL_FILE):
-        print(f"{EXCEL_FILE} が見つかりません。先にアップロードしてください。")
+def load_ticker_list():
+    if not os.path.exists(TICKER_LIST_CSV):
+        print(f"{TICKER_LIST_CSV} が見つかりません。")
         return []
 
-    df = pd.read_excel(EXCEL_FILE, skiprows=0)  # Excel の形式に応じて調整
-    if "コード" not in df.columns:
-        raise KeyError("'コード' 列が Excel に存在しません。")
-    tickers = df["コード"].astype(str) + ".T"
-    return tickers.tolist()
+    df = pd.read_csv(TICKER_LIST_CSV)
+
+    if not {"銘柄コード", "銘柄名"}.issubset(df.columns):
+        raise KeyError("CSV に '銘柄コード' '銘柄名' の列が必要です。")
+
+    df["Ticker"] = df["銘柄コード"].astype(str) + ".T"
+    return df
 
 # ---------------------------
-# ティッカー読み込み or 更新
+# 1銘柄の現在値を取得
 # ---------------------------
-def load_or_update_tickers():
-    update_needed = True
-    if os.path.exists(TICKER_FILE):
-        with open(TICKER_FILE, "r") as f:
-            data = json.load(f)
-            last_update = datetime.fromisoformat(data["last_update"])
-            if datetime.now() - last_update < timedelta(days=30):
-                update_needed = False
-                return data["tickers"]
+def fetch_current_price(ticker, name):
+    try:
+        stock = yf.Ticker(ticker)
+        price = stock.fast_info.last_price
 
-    if update_needed:
-        tickers = get_all_japanese_tickers()
-        with open(TICKER_FILE, "w") as f:
-            json.dump({"last_update": datetime.now().isoformat(), "tickers": tickers}, f)
-        print(f"ティッカーを更新しました ({len(tickers)} 件)")
-        return tickers
+        if price is None:
+            return None
+
+        return {
+            "銘柄コード": ticker.replace(".T", ""),
+            "銘柄名": name,
+            "株価": price,
+            "取得時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    except Exception as e:
+        print(f"{ticker} エラー: {e}")
+        return None
 
 # ---------------------------
-# 株価取得
+# 指定した60銘柄を一気に取得
 # ---------------------------
-def fetch_price(ticker):
-    for attempt in range(3):
-        try:
-            df = yf.download(ticker, period="1d", interval="60m", progress=False)
-            df.reset_index(inplace=True)
-            df["Ticker"] = ticker
-            return df
-        except Exception as e:
-            print(f"{ticker} 取得エラー: {e} (試行 {attempt+1})")
-            time.sleep(RETRY_DELAY)
-    return None
+def fetch_all_prices():
+    df_list = load_ticker_list()
+    if df_list is None or len(df_list) == 0:
+        print("銘柄リストが読み込めません")
+        return pd.DataFrame()
 
-def fetch_all_prices(tickers):
-    all_data = []
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(fetch_price, t): t for t in tickers}
-        for future in futures:
-            result = future.result()
-            if result is not None:
-                all_data.append(result)
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    return pd.DataFrame()
+    results = []
+    for _, row in df_list.iterrows():
+        ticker = row["Ticker"]
+        name = row["銘柄名"]
+        result = fetch_current_price(ticker, name)
+
+        if result is not None:
+            results.append(result)
+
+        time.sleep(0.2)  # Yahoo の負荷対策
+
+    if len(results) == 0:
+        return pd.DataFrame()
+
+    return pd.DataFrame(results)
 
 # ---------------------------
 # CSV 保存
@@ -86,10 +81,12 @@ def save_prices(df):
     if df.empty:
         print("取得データなし")
         return None
+
     now_str = datetime.now().strftime("%Y%m%d_%H%M")
     file_name = f"stock_prices_{now_str}.csv"
     file_path = os.path.join(DATA_DIR, file_name)
-    df.to_csv(file_path, index=False)
+
+    df.to_csv(file_path, index=False, encoding="utf-8-sig")
     print(f"保存完了: {file_path}")
     return file_name
 
@@ -98,32 +95,21 @@ def save_prices(df):
 # ---------------------------
 def git_commit_push(file_name):
     try:
-        # 変更をステージング
         subprocess.run(["git", "add", os.path.join(DATA_DIR, file_name)], check=True)
-
-        # コミット（既に同じコミットがあっても空コミット許可）
         subprocess.run(
-            ["git", "commit", "-m", f"Add stock data {file_name}", "--allow-empty"], 
+            ["git", "commit", "-m", f"Add stock data {file_name}", "--allow-empty"],
             check=True
         )
-
-        # push（GitHub Actions 内では GITHUB_TOKEN による認証で安全）
         subprocess.run(["git", "push"], check=True)
-        print(f"{file_name} を GitHub にコミット＆プッシュしました")
-    except subprocess.CalledProcessError as e:
+        print("GitHub にプッシュ完了")
+    except Exception as e:
         print(f"Git エラー: {e}")
 
 # ---------------------------
-# メイン処理
+# 実行メイン
 # ---------------------------
 def main():
-    tickers = load_or_update_tickers()
-    if not tickers:
-        print("ティッカーが取得できません。処理を終了します。")
-        return
-
-    print(f"{len(tickers)} 銘柄の株価を取得中...")
-    df = fetch_all_prices(tickers)
+    df = fetch_all_prices()
 
     file_name = save_prices(df)
     if file_name:
@@ -131,4 +117,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
