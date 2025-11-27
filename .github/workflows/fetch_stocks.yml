@@ -28,3 +28,13 @@ jobs:
 
       - name: Run stock price fetch
         run: python fetch_selected_stocks.py
+
+      - name: Commit and push generated CSV
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add stock_data/*.csv
+          git commit -m "Add stock data CSV from GitHub Actions" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
