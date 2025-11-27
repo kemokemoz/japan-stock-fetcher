@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # 重要（push するために必要）
+          token: ${{ secrets.REPO_PUSH_PAT }}   # ← ここが重要（PAT で clone する）
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -31,15 +31,16 @@ jobs:
       - name: Run stock price fetch
         run: python fetch_selected_stocks.py
 
-      # ★ PAT を使用して push（コード② を統合）
-      - name: Commit and push generated CSV using PAT
+      - name: Commit and push generated CSV (using PAT)
         env:
           PAT_TOKEN: ${{ secrets.REPO_PUSH_PAT }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add stock_data/*.csv
           git commit -m "Add stock data CSV from GitHub Actions" || echo "No changes to commit"
 
-          # --- 重要: PAT を使って push ---
+          # main ブランチへ push（PAT 利用）
           git push https://${PAT_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
+
