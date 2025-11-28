@@ -2,7 +2,9 @@ name: Fetch Selected Japan Stocks
 
 on:
   schedule:
+    # JST 9:00〜11:30（UTC 0:00〜2:30）
     - cron: "0,30 0-2 * * 1-5"
+    # JST 12:30〜15:30（UTC 3:30〜6:30）
     - cron: "30 3-6 * * 1-5"
   workflow_dispatch:
 
@@ -23,7 +25,29 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install yfinance pandas
+          pip install yfinance pandas jpholiday
+
+      - name: Check Japan Holiday / Year-end Holidays
+        run: |
+          python3 << 'EOF'
+          import datetime, jpholiday
+
+          # JST 現在日時
+          now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+          today = now.date()
+
+          # 年末年始の判定（12/29〜1/3）
+          if (today.month == 12 and today.day >= 29) or (today.month == 1 and today.day <= 3):
+              print("⛔ 年末年始のため処理を停止します。", today)
+              exit(1)
+
+          # 日本の祝日判定
+          if jpholiday.is_holiday(today):
+              print("⛔ 日本の祝日のため停止します:", today)
+              exit(1)
+
+          print("✅ 祝日ではありません。処理を継続します:", today)
+          EOF
 
       - name: Run stock price fetch
         run: python fetch_selected_stocks.py
