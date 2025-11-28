@@ -9,15 +9,18 @@ on:
     - cron: "30 3-6 * * 1-5"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   fetch_prices:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout (use PAT)
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.REPO_PUSH_PAT }}   # ← ここが重要（PAT で clone する）
+          token: ${{ secrets.REPO_PUSH_PAT }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -31,16 +34,12 @@ jobs:
       - name: Run stock price fetch
         run: python fetch_selected_stocks.py
 
-      - name: Commit and push generated CSV (using PAT)
+      - name: Commit and push generated CSV using PAT
         env:
           PAT_TOKEN: ${{ secrets.REPO_PUSH_PAT }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git add stock_data/*.csv
           git commit -m "Add stock data CSV from GitHub Actions" || echo "No changes to commit"
-
-          # main ブランチへ push（PAT 利用）
           git push https://${PAT_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
-
