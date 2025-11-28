@@ -2,22 +2,16 @@ name: Fetch Selected Japan Stocks
 
 on:
   schedule:
-    # ───────── JST (UTC+9) ──────────
-    # 9:00〜11:30 → UTC 0:00〜2:30
     - cron: "0,30 0-2 * * 1-5"
-    # 12:30〜15:30 → UTC 3:30〜6:30
     - cron: "30 3-6 * * 1-5"
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   fetch_prices:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout (use PAT)
+      - name: Checkout with PAT
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.REPO_PUSH_PAT }}
