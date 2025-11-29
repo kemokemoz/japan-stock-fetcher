@@ -2,6 +2,7 @@ import os
 import time
 import subprocess
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import pandas as pd
 import yfinance as yf
 
@@ -11,6 +12,10 @@ import yfinance as yf
 TICKER_LIST_CSV = "tickers_list.csv"   # ← 銘柄リスト（60銘柄）
 DATA_DIR = "stock_data"
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# JST タイムゾーン
+JST = ZoneInfo("Asia/Tokyo")
+
 
 # ---------------------------
 # 銘柄リストを読み込む
@@ -25,8 +30,10 @@ def load_ticker_list():
     if not {"銘柄コード", "銘柄名"}.issubset(df.columns):
         raise KeyError("CSV に '銘柄コード' '銘柄名' の列が必要です。")
 
+    # yfinance 形式に変換
     df["Ticker"] = df["銘柄コード"].astype(str) + ".T"
     return df
+
 
 # ---------------------------
 # 1銘柄の現在値を取得
@@ -39,18 +46,22 @@ def fetch_current_price(ticker, name):
         if price is None:
             return None
 
+        # JST で取得時間記録
+        jst_now = datetime.now(JST)
+
         return {
             "銘柄コード": ticker.replace(".T", ""),
             "銘柄名": name,
             "株価": price,
-            "取得時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "取得時間(JST)": jst_now.strftime("%Y-%m-%d %H:%M:%S")
         }
     except Exception as e:
         print(f"{ticker} エラー: {e}")
         return None
 
+
 # ---------------------------
-# 指定した60銘柄を一気に取得
+# 指定銘柄を全て取得
 # ---------------------------
 def fetch_all_prices():
     df_list = load_ticker_list()
@@ -67,28 +78,33 @@ def fetch_all_prices():
         if result is not None:
             results.append(result)
 
-        time.sleep(0.2)  # Yahoo の負荷対策
+        time.sleep(0.2)  # Yahoo 負荷対策
 
     if len(results) == 0:
         return pd.DataFrame()
 
     return pd.DataFrame(results)
 
+
 # ---------------------------
-# CSV 保存
+# CSV 保存（JST）
 # ---------------------------
 def save_prices(df):
     if df.empty:
         print("取得データなし")
         return None
 
-    now_str = datetime.now().strftime("%Y%m%d_%H%M")
+    jst_now = datetime.now(JST)
+    now_str = jst_now.strftime("%Y%m%d_%H%M")  # JST でファイル名生成
+
     file_name = f"stock_prices_{now_str}.csv"
     file_path = os.path.join(DATA_DIR, file_name)
 
     df.to_csv(file_path, index=False, encoding="utf-8-sig")
-    print(f"保存完了: {file_path}")
+
+    print(f"保存完了（JST）: {file_path}")
     return file_name
+
 
 # ---------------------------
 # GitHub 自動コミット＆プッシュ
@@ -101,9 +117,10 @@ def git_commit_push(file_name):
             check=True
         )
         subprocess.run(["git", "push"], check=True)
-        print("GitHub にプッシュ完了")
+        print("GitHub へプッシュ完了")
     except Exception as e:
         print(f"Git エラー: {e}")
+
 
 # ---------------------------
 # 実行メイン
@@ -114,6 +131,7 @@ def main():
     file_name = save_prices(df)
     if file_name:
         git_commit_push(file_name)
+
 
 if __name__ == "__main__":
     main()
