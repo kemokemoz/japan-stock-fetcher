@@ -2,11 +2,11 @@ name: Fetch Selected Japan Stocks
 
 on:
   schedule:
-    # JST 9:00〜11:30（UTC 0:00〜2:30）
+    # 午前（JST 9:00〜11:30 → UTC 0:00〜2:30）
     - cron: "0,30 0-2 * * 1-5"
-    # JST 12:30〜15:30（UTC 3:30〜6:30）
+
+    # 午後（JST 12:30〜15:30 → UTC 3:30〜6:30）
     - cron: "0,30 3-6 * * 1-5"
-  workflow_dispatch:
 
 jobs:
   fetch_prices:
