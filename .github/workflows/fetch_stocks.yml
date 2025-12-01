@@ -2,11 +2,8 @@ name: Fetch Selected Japan Stocks
 
 on:
   schedule:
-    # 午前（JST 9:00〜11:30 → UTC 0:00〜2:30）
-    - cron: "0,30 0-2 * * 1-5"
-
-    # 午後（JST 12:30〜15:30 → UTC 3:30〜6:30）
-    - cron: "0,30 3-6 * * 1-5"
+    - cron: "*/5 * * * 1-5"   # ★5分ごとに起動（公式推奨）
+  workflow_dispatch:
 
 jobs:
   fetch_prices:
@@ -31,22 +28,19 @@ jobs:
         run: |
           python3 << 'EOF'
           import datetime, jpholiday
-
-          # JST 現在日時
           now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
           today = now.date()
 
-          # 年末年始の判定（12/29〜1/3）
+          # 年末年始（12/29〜1/3）
           if (today.month == 12 and today.day >= 29) or (today.month == 1 and today.day <= 3):
-              print("⛔ 年末年始のため処理を停止します。", today)
+              print("⛔ 年末年始のため処理停止")
               exit(1)
 
-          # 日本の祝日判定
           if jpholiday.is_holiday(today):
-              print("⛔ 日本の祝日のため停止します:", today)
+              print("⛔ 日本の祝日のため停止")
               exit(1)
 
-          print("✅ 祝日ではありません。処理を継続します:", today)
+          print("✅ 稼働 OK", today)
           EOF
 
       - name: Run stock price fetch
@@ -59,5 +53,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add stock_data/*.csv
-          git commit -m "Add stock data CSV from GitHub Actions" || echo "No changes to commit"
+          git commit -m "Add stock data CSV" || echo "No changes"
           git push https://${PAT_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
