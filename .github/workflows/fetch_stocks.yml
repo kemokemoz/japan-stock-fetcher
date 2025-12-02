@@ -37,28 +37,6 @@ jobs:
         run: |
           pip install yfinance pandas jpholiday
 
-      - name: Check Japan Holiday / Year-end Holidays
-        run: |
-          python3 << 'EOF'
-          import datetime, jpholiday
-
-          JST = datetime.timezone(datetime.timedelta(hours=9))
-          now = datetime.datetime.now(JST)
-          today = now.date()
-
-          # 年末年始
-          if (today.month == 12 and today.day >= 29) or (today.month == 1 and today.day <= 3):
-              print("⛔ 年末年始のため停止")
-              exit(1)
-
-          # 日本の祝日
-          if jpholiday.is_holiday(today):
-              print("⛔ 日本の祝日のため停止")
-              exit(1)
-
-          print("✅ 稼働OK")
-          EOF
-
       - name: Fetch stock prices
         run: python fetch_selected_stocks.py
 
@@ -68,7 +46,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git add stock_data/*.csv
           git commit -m "Add stock data" || echo "No changes"
           git push https://${PAT_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
