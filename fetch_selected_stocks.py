@@ -13,17 +13,6 @@ TICKER_LIST_CSV = "tickers_list.csv"
 DATA_DIR = "stock_data"
 JST = ZoneInfo("Asia/Tokyo")
 
-# 日本市場の取得対象時刻（JST）
-TARGET_TIMES = [
-    "09:00", "09:30",
-    "10:00", "10:30",
-    "11:00", "11:30",
-    "12:30",
-    "13:00", "13:30",
-    "14:00", "14:30",
-    "15:00", "15:30",
-]
-
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # ------------------------------
@@ -34,7 +23,7 @@ def is_business_day():
     today = now.date()
 
     # 平日判定
-    if now.weekday() >= 5:  # 5=土曜, 6=日曜
+    if now.weekday() >= 5:
         print(f"⛔ 土日: {today}")
         return False
 
@@ -49,21 +38,6 @@ def is_business_day():
         return False
 
     return True
-
-# ------------------------------
-# 現在時刻が対象時刻か判定（±5分）
-# ------------------------------
-def is_target_time():
-    now = datetime.now(JST)
-    for t in TARGET_TIMES:
-        h, m = map(int, t.split(":"))
-        target = datetime(now.year, now.month, now.day, h, m, tzinfo=JST)
-        diff = abs((now - target).total_seconds())
-        if diff <= 300:  # ±5分
-            print(f"⭐ 取得時刻一致: {now.strftime('%H:%M:%S')} ≈ {t}")
-            return True
-    print(f"⏸ 対象外時刻: {now.strftime('%H:%M:%S')}")
-    return False
 
 # ------------------------------
 # 銘柄リスト読み込み
@@ -119,7 +93,7 @@ def fetch_all_prices():
         data = fetch_current_price(row["Ticker"], row["銘柄名"])
         if data:
             results.append(data)
-        time.sleep(0.3)  # API負荷軽減
+        time.sleep(0.3)
     return pd.DataFrame(results)
 
 # ------------------------------
@@ -142,18 +116,14 @@ def save_prices(df):
 # main
 # ------------------------------
 def main():
-    # 1. 営業日か確認
+    # 営業日判定
     if not is_business_day():
         return
 
-    # 2. 対象時刻か確認
-    if not is_target_time():
-        return
-
-    # 3. 株価取得
+    # 株価取得
     df = fetch_all_prices()
 
-    # 4. CSV 保存
+    # CSV 保存
     save_prices(df)
 
 if __name__ == "__main__":
